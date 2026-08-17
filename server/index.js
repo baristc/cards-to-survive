@@ -61,6 +61,7 @@ function sendGameState(room) {
       rpsPlayerIds: game.rps?.playerIds ?? [],
       rpsSelectedPlayerIds: Object.keys(game.rps?.choices ?? {}),
       myRpsChoice: game.rps?.choices[player.id] ?? null,
+      rpsAttempt: game.rps?.attempt ?? 0,
       finalMode: activePlayers(room).length === 2,
       stats: game.stats,
       elapsedSeconds: Math.floor((Date.now() - game.startedAt) / 1000),
@@ -155,7 +156,7 @@ function resolveRound(room) {
   game.timer = setTimeout(() => {
     if (game.pendingTiedIds.length === 1) return awardRound(room, game.pendingTiedIds[0]);
     game.phase = "rps";
-    game.rps = { playerIds: game.pendingTiedIds, choices: {} };
+    game.rps = { playerIds: game.pendingTiedIds, choices: {}, attempt: 1 };
     startRpsTimer(room);
     sendGameState(room);
   }, 3200);
@@ -180,6 +181,7 @@ function resolveRps(room) {
   const values = [...new Set(Object.values(rps.choices))];
   if (values.length !== 2) {
     rps.choices = {};
+    rps.attempt += 1;
     startRpsTimer(room);
     sendGameState(room);
     return;
@@ -190,6 +192,7 @@ function resolveRps(room) {
   if (winners.length === 1) return awardRound(room, winners[0], true);
   rps.playerIds = winners;
   rps.choices = {};
+  rps.attempt += 1;
   startRpsTimer(room);
   sendGameState(room);
 }

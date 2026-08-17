@@ -121,8 +121,14 @@ function App() {
   }, [gameState?.round]);
 
   useEffect(() => {
-    if (gameState?.phase !== "rps") setPendingRpsChoice(null);
-  }, [gameState?.phase]);
+    if (gameState?.phase !== "rps") {
+      setPendingRpsChoice(null);
+      return;
+    }
+    if (!gameState.myRpsChoice && gameState.rpsSelectedPlayerIds.length === 0) {
+      setPendingRpsChoice(null);
+    }
+  }, [gameState?.phase, gameState?.myRpsChoice, gameState?.rpsSelectedPlayerIds.length, gameState?.rpsAttempt]);
 
   useEffect(() => {
     if (gameState?.phase !== "trumpSpinning") {
@@ -325,6 +331,7 @@ function App() {
             {gameState.phase === "rps" && (
               <section className="rps-panel">
                 <h2>⚔️ BERABERLİK — TAŞ KAĞIT MAKAS</h2>
+                {gameState.rpsAttempt > 1 && <div className="rps-draw-message">Berabere! Tekrar seçim yapın.</div>}
                 <div className="rps-timer">Seçim için <strong>{timeLeft}</strong> saniye</div>
                 <div className="rps-contenders">
                   {gameState.rpsPlayerIds.map((id) => {
