@@ -326,9 +326,10 @@ io.on("connection", (socket) => {
 
   socket.on("rpsChoice", ({ roomCode, choice }) => {
     const room = rooms[roomCode?.trim().toUpperCase()];
-    if (!room?.started || room.game.phase !== "rps") return socket.emit("roomError", "Taş-kağıt-makas aktif değil.");
-    if (!room.game.rps.playerIds.includes(socket.id)) return socket.emit("roomError", "Bu beraberliğin tarafı değilsin.");
-    if (!["rock", "paper", "scissors"].includes(choice)) return socket.emit("roomError", "Geçersiz seçim.");
+    if (!room?.started || room.game.phase !== "rps") return;
+    if (!room.game.rps.playerIds.includes(socket.id)) return;
+    if (!["rock", "paper", "scissors"].includes(choice)) return;
+    if (room.game.rps.choices[socket.id]) return;
     room.game.rps.choices[socket.id] = choice;
     sendGameState(room);
     if (room.game.rps.playerIds.every((id) => room.game.rps.choices[id])) resolveRps(room);

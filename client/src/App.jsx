@@ -22,6 +22,7 @@ function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [notice, setNotice] = useState("");
+  const [pendingRpsChoice, setPendingRpsChoice] = useState(null);
 
   useEffect(() => {
     const handleConnect = () => {
@@ -116,7 +117,12 @@ function App() {
 
   useEffect(() => {
     setSelectedCardId(null);
+    setPendingRpsChoice(null);
   }, [gameState?.round]);
+
+  useEffect(() => {
+    if (gameState?.phase !== "rps") setPendingRpsChoice(null);
+  }, [gameState?.phase]);
 
   useEffect(() => {
     if (gameState?.phase !== "trumpSpinning") {
@@ -235,6 +241,8 @@ function App() {
   };
 
   const handleRpsChoice = (choice) => {
+    if (pendingRpsChoice || gameState?.myRpsChoice) return;
+    setPendingRpsChoice(choice);
     socket.emit("rpsChoice", { roomCode: createdRoom.roomCode, choice });
   };
 
@@ -334,8 +342,8 @@ function App() {
                       ].map((option) => (
                         <button
                           key={option.value}
-                          className={gameState.myRpsChoice === option.value ? "selected-rps" : ""}
-                          disabled={Boolean(gameState.myRpsChoice)}
+                          className={(gameState.myRpsChoice || pendingRpsChoice) === option.value ? "selected-rps" : ""}
+                          disabled={Boolean(gameState.myRpsChoice || pendingRpsChoice)}
                           onClick={() => handleRpsChoice(option.value)}
                         >
                           <span aria-hidden="true">{option.icon}</span>
@@ -343,7 +351,7 @@ function App() {
                         </button>
                       ))}
                     </div>
-                    {gameState.myRpsChoice && <p className="rps-confirmation">✓ Seçimin alındı. Rakibin bekleniyor.</p>}
+                    {(gameState.myRpsChoice || pendingRpsChoice) && <p className="rps-confirmation">✓ Seçimin alındı. Rakibin bekleniyor.</p>}
                   </>
                 ) : (
                   <p className="rps-spectator">Berabere kalan oyuncular seçim yapıyor.</p>
