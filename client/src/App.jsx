@@ -516,7 +516,8 @@ function App() {
                 max="99"
                 value={winTarget}
                 disabled={playUntilCardsEnd}
-                onChange={(e) => setWinTarget(Math.min(99, Math.max(1, Number(e.target.value))))}
+                onChange={(e) => setWinTarget(e.target.value)}
+                onBlur={() => setWinTarget(Math.min(99, Math.max(1, Number(winTarget) || 1)))}
               />
               <span>tur kazanan</span>
             </div>
