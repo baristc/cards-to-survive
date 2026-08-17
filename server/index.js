@@ -174,7 +174,9 @@ function startRpsTimer(room) {
 }
 
 function resolveRps(room) {
+  clearTimeout(room.game.timer);
   const rps = room.game.rps;
+  if (!rps) return;
   const values = [...new Set(Object.values(rps.choices))];
   if (values.length !== 2) {
     rps.choices = {};
