@@ -271,8 +271,13 @@ function App() {
             <div className="player-strip">
               {gameState.players.map((player) => (
                 <div className={`game-player ${player.eliminated ? "eliminated" : ""}`} key={player.id}>
-                  <span>{player.name} {player.connected === false && <small className="reconnecting-label">Bağlantı koptu — 45 sn bekleniyor</small>}</span><strong>🂠 × {player.cardCount}</strong>
-                  {player.cardCount > 0 && player.cardCount <= 3 && <em>⚠️ {player.cardCount} kart kaldı</em>}
+                  <span>{player.name} {player.connected === false && <small className="reconnecting-label">Bağlantı koptu — 45 sn bekleniyor</small>}</span>
+                  <strong>
+                    {gameState.playUntilCardsEnd
+                      ? `🂠 × ${player.cardCount}`
+                      : `🏆 ${gameState.stats[player.id]?.roundsWon ?? 0} / ${gameState.winTarget} tur`}
+                  </strong>
+                  {gameState.playUntilCardsEnd && player.cardCount > 0 && player.cardCount <= 3 && <em>⚠️ {player.cardCount} kart kaldı</em>}
                   {player.eliminated && <em className="eliminated-label">ELENDİ</em>}
                   {gameState.selectedPlayerIds.includes(player.id) && <small>✓ Seçti</small>}
                 </div>
