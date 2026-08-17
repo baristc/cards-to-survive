@@ -508,8 +508,8 @@ function App() {
 
         <div className="form-group win-settings">
           <label>Kazanma Koşulu</label>
-          <div className="win-target-row">
-            <div>
+          <div className={`win-target-row ${playUntilCardsEnd ? "cards-only-mode" : ""}`}>
+            <div className="target-input-panel" aria-hidden={playUntilCardsEnd}>
               <input
                 type="number"
                 min="1"
