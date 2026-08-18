@@ -308,7 +308,9 @@ io.on("connection", (socket) => {
     const key = queueKey(maxPlayers, cleanTarget, Boolean(playUntilCardsEnd)); const queue = matchmakingQueues.get(key) || [];
     const entry = { socketId: socket.id, playerName: cleanName, playerToken, maxPlayers, winTarget: cleanTarget, playUntilCardsEnd: Boolean(playUntilCardsEnd), joinedAt: Date.now() };
     queue.push(entry); matchmakingQueues.set(key, queue);
-    notifyQueue(queue); tryCreateMatch(key);
+    notifyQueue(queue);
+    tryCreateMatch(key);
+    if (isInMatchmaking(socket.id)) tryBroadMatch(maxPlayers);
     setTimeout(() => {
       if (!isInMatchmaking(socket.id)) return;
       socket.emit("matchmakingExpanded");
