@@ -54,6 +54,10 @@ function App() {
       setError("");
     });
 
+    socket.on("matchmakingExpanded", () => {
+      setMatchmaking((status) => status ? { ...status, expanded: true } : status);
+    });
+
     socket.on("matchmakingCancelled", () => {
       setMatchmaking(null);
       setMatchCountdown(null);
@@ -119,6 +123,7 @@ function App() {
       socket.off("roomCreated");
       socket.off("roomJoined");
       socket.off("matchmakingUpdate");
+      socket.off("matchmakingExpanded");
       socket.off("matchmakingCancelled");
       socket.off("matchFound");
       socket.off("roomRejoined");
@@ -299,7 +304,7 @@ function App() {
         <div className="menu-card matchmaking-card">
           <div className="matchmaking-pulse">{matchCountdown !== null ? "✓" : "⌕"}</div>
           <h1>{matchCountdown !== null ? "EŞLEŞME BULUNDU!" : "RAKİPLER ARANIYOR"}</h1>
-          <p>{matchCountdown !== null ? `Oyun ${matchCountdown} saniye içinde başlıyor...` : `${required} kişilik uygun bir oyun aranıyor.`}</p>
+          <p>{matchCountdown !== null ? `Oyun ${matchCountdown} saniye içinde başlıyor...` : matchmaking?.expanded ? "Arama genişletildi; farklı oyun ayarlarındaki oyuncular da aranıyor." : `${required} kişilik uygun bir oyun aranıyor.`}</p>
           <div className="matchmaking-progress"><span style={{ width: `${(current / required) * 100}%` }} /></div>
           <strong>{current} / {required} oyuncu</strong>
           {matchCountdown === null && <button className="cancel-match-button" onClick={handleCancelMatchmaking}>ARAMAYI İPTAL ET</button>}
