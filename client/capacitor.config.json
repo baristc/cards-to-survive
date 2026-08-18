@@ -1,0 +1,19 @@
+{
+  "appId": "com.cardstosurvive.game",
+  "appName": "Cards to Survive",
+  "webDir": "dist",
+  "backgroundColor": "#f7fbfd",
+  "plugins": {
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#f7fbfd",
+      "overlaysWebView": false
+    },
+    "SplashScreen": {
+      "launchShowDuration": 1800,
+      "launchAutoHide": true,
+      "backgroundColor": "#f7fbfd",
+      "showSpinner": false
+    }
+  }
+}

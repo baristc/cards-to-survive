@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import { Capacitor } from "@capacitor/core";
 import "./App.css";
 
-const socket = io(import.meta.env.VITE_SERVER_URL || "http://localhost:3001");
+const serverUrl = import.meta.env.VITE_SERVER_URL || (Capacitor.isNativePlatform() ? "https://cards-to-survive.onrender.com" : "http://localhost:3001");
+const socket = io(serverUrl);
 const playerToken = localStorage.getItem("cts-player-token") || crypto.randomUUID();
 localStorage.setItem("cts-player-token", playerToken);
 

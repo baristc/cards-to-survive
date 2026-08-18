@@ -6,7 +6,10 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: process.env.CLIENT_URL || "*", methods: ["GET", "POST"] } });
+const allowedOrigins = process.env.CLIENT_URL
+  ? [process.env.CLIENT_URL, "http://localhost", "https://localhost", "capacitor://localhost"]
+  : "*";
+const io = new Server(server, { cors: { origin: allowedOrigins, methods: ["GET", "POST"] } });
 const rooms = {};
 const matchmakingQueues = new Map();
 const suits = ["♥", "♠", "♣", "♦"];
