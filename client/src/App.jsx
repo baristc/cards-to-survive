@@ -23,6 +23,8 @@ function App() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [notice, setNotice] = useState("");
   const [pendingRpsChoice, setPendingRpsChoice] = useState(null);
+  const [matchmaking, setMatchmaking] = useState(null);
+  const [matchCountdown, setMatchCountdown] = useState(null);
 
   useEffect(() => {
     const handleConnect = () => {
@@ -46,6 +48,24 @@ function App() {
       setError("");
     });
 
+    socket.on("matchmakingUpdate", (status) => {
+      setMatchmaking(status);
+      setMatchCountdown(null);
+      setError("");
+    });
+
+    socket.on("matchmakingCancelled", () => {
+      setMatchmaking(null);
+      setMatchCountdown(null);
+    });
+
+    socket.on("matchFound", (room) => {
+      localStorage.setItem("cts-room-code", room.roomCode);
+      setCreatedRoom(room);
+      setMatchmaking(null);
+      setMatchCountdown(3);
+      setError("");
+    });
     socket.on("roomRejoined", (room) => {
       setCreatedRoom(room);
       setGameStarted(room.started);
@@ -96,6 +116,9 @@ function App() {
       socket.off("disconnect", handleDisconnect);
       socket.off("roomCreated");
       socket.off("roomJoined");
+      socket.off("matchmakingUpdate");
+      socket.off("matchmakingCancelled");
+      socket.off("matchFound");
       socket.off("roomRejoined");
       socket.off("reconnectFailed");
       socket.off("roomUpdated");
@@ -194,6 +217,14 @@ function App() {
     socket.emit("joinRoom", { playerName, roomCode, playerToken });
   };
 
+  const handleOnlinePlay = () => {
+    if (!socket.connected) return setError("Oyun sunucusuna bağlantı yok. Server'ı kontrol et.");
+    if (!playerName.trim()) return setError("Önce oyuncu adını gir.");
+    setError("");
+    socket.emit("joinMatchmaking", { playerName, playerCount, winTarget, playUntilCardsEnd, playerToken });
+  };
+
+  const handleCancelMatchmaking = () => socket.emit("cancelMatchmaking");
   const handleKickPlayer = (playerId) => {
     socket.emit("kickPlayer", { roomCode: createdRoom.roomCode, playerId });
   };
@@ -252,6 +283,22 @@ function App() {
     socket.emit("rpsChoice", { roomCode: createdRoom.roomCode, choice });
   };
 
+  if (matchmaking || matchCountdown !== null) {
+    const current = matchmaking?.current ?? createdRoom?.maxPlayers ?? playerCount;
+    const required = matchmaking?.required ?? createdRoom?.maxPlayers ?? playerCount;
+    return (
+      <div className="app">
+        <div className="menu-card matchmaking-card">
+          <div className="matchmaking-pulse">{matchCountdown !== null ? "✓" : "⌕"}</div>
+          <h1>{matchCountdown !== null ? "EŞLEŞME BULUNDU!" : "RAKİPLER ARANIYOR"}</h1>
+          <p>{matchCountdown !== null ? `Oyun ${matchCountdown} saniye içinde başlıyor...` : `${required} kişilik uygun bir oyun aranıyor.`}</p>
+          <div className="matchmaking-progress"><span style={{ width: `${(current / required) * 100}%` }} /></div>
+          <strong>{current} / {required} oyuncu</strong>
+          {matchCountdown === null && <button className="cancel-match-button" onClick={handleCancelMatchmaking}>ARAMAYI İPTAL ET</button>}
+        </div>
+      </div>
+    );
+  }
   if (createdRoom) {
     const currentPlayer = createdRoom.players.find(
       (player) => player.id === socket.id
@@ -542,6 +589,11 @@ function App() {
 
         {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
 
+        <button className="online-play-button" onClick={handleOnlinePlay}>
+          <span>🌐</span>
+          <strong>ONLINE OYNA</strong>
+          <small>Rastgele oyuncularla eşleş</small>
+        </button>
         <button className="main-button" onClick={handleCreateRoom}>
           ODA KUR
         </button>

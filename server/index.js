@@ -8,6 +8,7 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: process.env.CLIENT_URL || "*", methods: ["GET", "POST"] } });
 const rooms = {};
+const matchmakingQueues = new Map();
 const suits = ["♥", "♠", "♣", "♦"];
 const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 
@@ -230,9 +231,61 @@ function moveGamePlayerId(game, oldId, newId) {
   if (game.winnerId === oldId) game.winnerId = newId;
 }
 
+function initializeGame(room) {
+  if (!room || room.started) return;
+  const deck = shuffle(createDeck());
+  const cardsPerPlayer = Math.floor(deck.length / room.players.length);
+  const playableCardCount = cardsPerPlayer * room.players.length;
+  const playableCards = deck.slice(0, playableCardCount);
+  const removedCards = deck.slice(playableCardCount);
+  const decks = Object.fromEntries(room.players.map((player, playerIndex) => [player.id, playableCards.slice(playerIndex * cardsPerPlayer, (playerIndex + 1) * cardsPerPlayer)]));
+  room.started = true;
+  room.game = { decks, removedCards, round: 0, phase: "starting", choices: {}, options: {}, trump: null, roundCards: [], roundWinnerId: null, winnerId: null, deadline: null, rps: null, timer: null, startedAt: Date.now(), stats: Object.fromEntries(room.players.map((player) => [player.id, { roundsWon: 0, cardsWon: 0, trumpWins: 0, rpsWins: 0 }])) };
+  io.to(room.roomCode).emit("gameStarted");
+  startRound(room);
+}
+function queueKey(maxPlayers, winTarget, playUntilCardsEnd) { return `${maxPlayers}:${playUntilCardsEnd ? "cards" : winTarget}`; }
+function removeFromMatchmaking(socketId, notify = true) {
+  for (const [key, queue] of matchmakingQueues) {
+    const index = queue.findIndex((entry) => entry.socketId === socketId);
+    if (index === -1) continue;
+    queue.splice(index, 1);
+    if (!queue.length) matchmakingQueues.delete(key); else queue.forEach((entry) => io.to(entry.socketId).emit("matchmakingUpdate", { current: queue.length, required: entry.maxPlayers }));
+    if (notify) io.to(socketId).emit("matchmakingCancelled");
+    return true;
+  }
+  return false;
+}
+function tryCreateMatch(key) {
+  const queue = matchmakingQueues.get(key);
+  if (!queue?.length) return;
+  const required = queue[0].maxPlayers;
+  const connected = queue.filter((entry) => io.sockets.sockets.has(entry.socketId));
+  matchmakingQueues.set(key, connected);
+  if (connected.length < required) { connected.forEach((entry) => io.to(entry.socketId).emit("matchmakingUpdate", { current: connected.length, required })); return; }
+  const matched = connected.splice(0, required);
+  if (!connected.length) matchmakingQueues.delete(key); else matchmakingQueues.set(key, connected);
+  const roomCode = createRoomCode(); const first = matched[0];
+  const room = { roomCode, maxPlayers: required, winTarget: first.winTarget, playUntilCardsEnd: first.playUntilCardsEnd, hostId: first.socketId, players: matched.map((entry) => ({ id: entry.socketId, token: entry.playerToken, name: entry.playerName, ready: true, connected: true, reconnectTimer: null })), started: false, matchmaking: true };
+  rooms[roomCode] = room;
+  matched.forEach((entry) => io.sockets.sockets.get(entry.socketId)?.join(roomCode));
+  io.to(roomCode).emit("matchFound", publicRoom(room));
+  setTimeout(() => initializeGame(rooms[roomCode]), 3000);
+  if (connected.length >= required) tryCreateMatch(key);
+}
 app.get("/", (req, res) => res.send("Cards to Survive server çalışıyor."));
 
 io.on("connection", (socket) => {
+  socket.on("joinMatchmaking", ({ playerName, playerCount, winTarget, playUntilCardsEnd, playerToken }) => {
+    const cleanName = playerName?.trim(); const maxPlayers = Number(playerCount); const cleanTarget = Math.min(99, Math.max(1, Number(winTarget) || 10));
+    if (!cleanName) return socket.emit("roomError", "Oyuncu adı boş bırakılamaz.");
+    if (![2, 3, 4].includes(maxPlayers)) return socket.emit("roomError", "Oyuncu sayısı geçersiz.");
+    removeFromMatchmaking(socket.id, false);
+    const key = queueKey(maxPlayers, cleanTarget, Boolean(playUntilCardsEnd)); const queue = matchmakingQueues.get(key) || [];
+    queue.push({ socketId: socket.id, playerName: cleanName, playerToken, maxPlayers, winTarget: cleanTarget, playUntilCardsEnd: Boolean(playUntilCardsEnd) }); matchmakingQueues.set(key, queue);
+    queue.forEach((entry) => io.to(entry.socketId).emit("matchmakingUpdate", { current: queue.length, required: maxPlayers })); tryCreateMatch(key);
+  });
+  socket.on("cancelMatchmaking", () => removeFromMatchmaking(socket.id));
   socket.on("createRoom", ({ playerName, playerCount, winTarget, playUntilCardsEnd, playerToken }) => {
     const cleanName = playerName?.trim();
     const maxPlayers = Number(playerCount);
@@ -298,24 +351,7 @@ io.on("connection", (socket) => {
     if (room.hostId !== socket.id) return socket.emit("roomError", "Oyunu yalnızca oda sahibi başlatabilir.");
     if (room.players.length !== room.maxPlayers) return socket.emit("roomError", "Oyunu başlatmak için oda dolu olmalı.");
     if (!room.players.every((p) => p.ready)) return socket.emit("roomError", "Tüm oyuncular hazır olmalı.");
-    const deck = shuffle(createDeck());
-    const cardsPerPlayer = Math.floor(deck.length / room.players.length);
-    const playableCardCount = cardsPerPlayer * room.players.length;
-    const playableCards = deck.slice(0, playableCardCount);
-    const removedCards = deck.slice(playableCardCount);
-    const decks = Object.fromEntries(room.players.map((player, playerIndex) => [
-      player.id,
-      playableCards.slice(playerIndex * cardsPerPlayer, (playerIndex + 1) * cardsPerPlayer),
-    ]));
-    room.started = true;
-    room.game = {
-      decks, removedCards, round: 0, phase: "starting", choices: {}, options: {}, trump: null,
-      roundCards: [], roundWinnerId: null, winnerId: null, deadline: null, rps: null, timer: null,
-      startedAt: Date.now(),
-      stats: Object.fromEntries(room.players.map((player) => [player.id, { roundsWon: 0, cardsWon: 0, trumpWins: 0, rpsWins: 0 }])),
-    };
-    io.to(room.roomCode).emit("gameStarted");
-    startRound(room);
+    initializeGame(room);
   });
 
   socket.on("selectCard", ({ roomCode, cardId }) => {
@@ -374,6 +410,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    removeFromMatchmaking(socket.id, false);
     Object.entries(rooms).forEach(([code, room]) => {
       const player = room.players.find((item) => item.id === socket.id);
       if (!player) return;
