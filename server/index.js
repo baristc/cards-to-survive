@@ -259,8 +259,7 @@ function removeFromMatchmaking(socketId, notify = true) {
   }
   return false;
 }
-function createMatch(matched) {
-  const required = matched[0].maxPlayers;
+function createMatch(matched, required = matched[0].maxPlayers) {
   const first = [...matched].sort((a, b) => a.joinedAt - b.joinedAt)[0];
   const roomCode = createRoomCode();
   const room = { roomCode, maxPlayers: required, winTarget: first.winTarget, playUntilCardsEnd: first.playUntilCardsEnd, hostId: first.socketId, players: matched.map((entry) => ({ id: entry.socketId, token: entry.playerToken, name: entry.playerName, ready: true, connected: true, reconnectTimer: null })), started: false, matchmaking: true };
@@ -280,23 +279,31 @@ function tryCreateMatch(key) {
   createMatch(matched);
   if (queue.length >= required) tryCreateMatch(key);
 }
-function tryBroadMatch(maxPlayers) {
+function tryBroadMatch() {
   const entries = [];
   for (const [key, queue] of matchmakingQueues) {
     const connected = queue.filter((entry) => io.sockets.sockets.has(entry.socketId));
     if (!connected.length) matchmakingQueues.delete(key); else matchmakingQueues.set(key, connected);
-    entries.push(...connected.filter((entry) => entry.maxPlayers === maxPlayers));
+    entries.push(...connected);
   }
   entries.sort((a, b) => a.joinedAt - b.joinedAt);
-  if (entries.length < maxPlayers || Date.now() - entries[0].joinedAt < MATCHMAKING_FALLBACK_MS) return;
-  const matched = entries.slice(0, maxPlayers);
+  if (!entries.length || Date.now() - entries[0].joinedAt < MATCHMAKING_FALLBACK_MS) return;
+
+  const possibleSizes = [...new Set(entries.map((entry) => entry.maxPlayers))]
+    .filter((size) => size <= entries.length)
+    .sort((a, b) => b - a);
+  if (!possibleSizes.length) return;
+
+  const required = possibleSizes[0];
+  const sponsor = entries.find((entry) => entry.maxPlayers === required);
+  const matched = [sponsor, ...entries.filter((entry) => entry.socketId !== sponsor.socketId).slice(0, required - 1)];
   const matchedIds = new Set(matched.map((entry) => entry.socketId));
   for (const [key, queue] of matchmakingQueues) {
     const remaining = queue.filter((entry) => !matchedIds.has(entry.socketId));
     if (!remaining.length) matchmakingQueues.delete(key); else { matchmakingQueues.set(key, remaining); notifyQueue(remaining); }
   }
-  createMatch(matched);
-  tryBroadMatch(maxPlayers);
+  createMatch(matched, required);
+  tryBroadMatch();
 }app.get("/", (req, res) => res.send("Cards to Survive server çalışıyor."));
 
 io.on("connection", (socket) => {
@@ -310,11 +317,11 @@ io.on("connection", (socket) => {
     queue.push(entry); matchmakingQueues.set(key, queue);
     notifyQueue(queue);
     tryCreateMatch(key);
-    if (isInMatchmaking(socket.id)) tryBroadMatch(maxPlayers);
+    if (isInMatchmaking(socket.id)) tryBroadMatch();
     setTimeout(() => {
       if (!isInMatchmaking(socket.id)) return;
       socket.emit("matchmakingExpanded");
-      tryBroadMatch(maxPlayers);
+      tryBroadMatch();
     }, MATCHMAKING_FALLBACK_MS);
   });
   socket.on("cancelMatchmaking", () => removeFromMatchmaking(socket.id));
