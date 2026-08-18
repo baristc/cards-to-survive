@@ -82,12 +82,14 @@ function App() {
 
     socket.on("gameStarted", () => {
       setGameStarted(true);
+      setMatchCountdown(null);
       setError("");
     });
 
     socket.on("gameUpdated", (state) => {
       setGameState(state);
       setGameStarted(true);
+      setMatchCountdown(null);
       setError("");
     });
 
@@ -129,6 +131,12 @@ function App() {
       socket.off("roomError");
     };
   }, []);
+
+  useEffect(() => {
+    if (matchCountdown === null || matchCountdown <= 0) return;
+    const timer = setTimeout(() => setMatchCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [matchCountdown]);
 
   useEffect(() => {
     if (!gameState?.deadline) return;
